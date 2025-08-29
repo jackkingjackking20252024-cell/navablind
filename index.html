@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="manifest"
+          href="data:application/manifest+json;base64, ewogICJuYW1lIjogIkJsaW5kU2hvcCIsCiAgInNob3J0X25hbWUiOiAiQmxpbmRTaG9wIiwKICAiaWNvbnMiOiBbCiAgICB7CiAgICAgICJzcmMiOiAiaWNvbi0xOTJ4MTkyLnBuZyIsCiAgICAgICJ0eXBlIjogImltYWdlL3BuZyIsCiAgICAgICJzaXplcyI6ICIxOTJ4MTkyIgogICAgfSwKCiAgICB7CiAgICAgICJzcmMiOiAiaWNvbi01MTJ4NTEyLnBuZyIsCiAgICAgICJ0eXBlIjoib21hZ2UvcG5nIiwKICAgICAgInNpemVzIjogIjUxMng1MTIiCiAgfQogIF0sCiAgInRoZW1lX2NvbG9yIjogIjA0Nzg1NyIsCiAgImJhY2tncm91bmRfcm9sb3I6ICIjZmZmZmZmIiwKICAgICJzdGFydF91cmwiOiAiLyIsCiAgImRpc3BsYXkiOiAic3RhbmRhbG9uZSJ9">
+    <title>BlindShop</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        input, select, button, border, table { border-radius: 0.5rem; }
+        table { border-collapse: separate; border-spacing: 0; overflow: hidden; width: 100%; }
+        th, td { border: 1px solid #e2e8f0; padding: 0.5rem; text-align: left; }
+        thead th { background-color: #047857; color: white; }
+        .message-box { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); z-index: 1000; display: none; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 999; display: none; }
+        body { font-family: 'Inter', sans-serif; }
+        .staff-view.actions-column { display: none; }
+        .staff-list-item { display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0; border-bottom: 1px solid #eee; }
+        .staff-list-item:last-child { border-bottom: none; }
+        #login-section { background: linear-gradient(135deg, #06b6d4 0%, #047857 100%); }
+        .transaction-item { display: flex; justify-content: space-between; align-items: center; }
+        @media print {
+            body { visibility: hidden; }
+            #print-area, #print-area * { visibility: visible; }
+            #print-area { position: absolute; left: 0; top: 0; width: 100%; }
+            .no-print { display: none !important; }
+        }
+        .logout-button {
+            background: none;
+            border: none;
+            color: #fff;
+            padding: 0;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        .tab-button.active {
+            border-bottom: 3px solid #047857;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body class="bg-white text-black font-bold">
+    <div id="overlay" class="overlay"></div>
+    <div id="messageBox" class="message-box">
+        <div id="messageBoxContent"></div>
+        <button onclick="hideMessageBox()" class="mt-4 bg-green-700 text-white px-4 py-2 rounded-lg">OK</button>
+    </div>
+
+    <div id="login-section" class="flex flex-col items-center justify-center min-h-screen">
+        <h1 class="text-4xl text-white mb-6 shadow-sm">Welcome to BlindShop</h1>
+        <div class="bg-white/90 backdrop-blur-sm p-2 rounded-lg shadow-xl w-full max-w-sm mb-4 text-center">
+            <p class="text-xl text-gray-700">Total Customers: <span id="total-customers" class="font-extrabold text-green-700">0</span></p>
+        </div>
+        <div id="working-staff-panel" class="bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-xl w-full max-w-sm mb-4">
+            <h2 class="text-center text-gray-700 font-bold mb-2">Today's Working Staff</h2>
+            <ul id="working-staff-list" class="text-center text-gray-600">
+                <li class="italic text-sm">No staff selected.</li>
+            </ul>
+        </div>
+        <div class="bg-white/90 backdrop-blur-sm p-8 rounded-lg shadow-xl w-full max-w-sm">
+            <div class="flex items-end justify-between mb-2">
+                <label for="password" class="block text-gray-700 text-sm font-bold">Password:</label>
+                <p class="text-xs text-green-700">Customers: <span id="password-panel-customer-count">0</span></p>
+            </div>
+            <input type="password" id="password" class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mb-4" placeholder="Enter password">
+            <button onclick="checkLogin()" class="bg-green-700 hover:bg-green-800 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:shadow-outline w-full">Login</button>
+        </div>
+    </div>
+
+    <div id="attendance-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4 text-center">Staff Attendance</h3>
+            <div class="mt-2 text-center">
+                <p id="attendance-message" class="text-sm text-gray-500 mb-4"></p>
+                <div id="attendance-staff-selector" class="mb-4">
+                    <label for="attendance-staff-name" class="block text-sm font-medium text-gray-700">Select Staff:</label>
+                    <select id="attendance-staff-name" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm rounded-md"></select>
+                </div>
+                <div class="flex justify-center mt-4">
+                    <input type="file" id="camera-input" accept="image/*" capture="user" class="hidden">
+                    <button onclick="triggerCamera()" id="attendance-button" class="bg-green-600 text-white px-4 py-2 rounded-lg">Attendance Login</button>
+                </div>
+            </div>
+            <div class="mt-4 text-center">
+                <button onclick="closeAttendanceModal()" class="text-sm text-gray-500 mt-2">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="p-4 space-y-6 hidden" id="app">
+        <div class="flex justify-between items-center mb-6 no-print">
+            <h1 class="text-3xl text-green-700 text-center flex-grow">BlindShop</h1>
+            <button onclick="logout()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                    <path fill-rule="evenodd" d="M7.5 3.75A1.5 1.5 0 0 0 6 5.25v13.5A1.5 1.5 0 0 0 7.5 20.25h1.5a.75.75 0 0 0 0-1.5H7.5a.75.75 0 0 1-.75-.75V5.25a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 0 0-1.5H7.5Z" clip-rule="evenodd" />
+                    <path fill-rule="evenodd" d="M12.375 12a.75.75 0 0 0 0 1.5h7.5a.75.75 0 0 0 0-1.5h-7.5Z" clip-rule="evenodd" />
+                    <path fill-rule="evenodd" d="M15.195 9.495a.75.75 0 0 0 .973-1.045l-3.25-3a.75.75 0 0 0-.973 1.045l3.25 3Z" clip-rule="evenodd" />
+                    <path fill-rule="evenodd" d="M15.195 14.505a.75.75 0 0 0-.973 1.045l3.25 3a.75.75 0 0 0 .973-1.045l-3.25-3Z" clip-rule="evenodd" />
+                </svg>
+                <span>Logout</span>
+            </button>
+        </div>
+
+        <div class="no-print admin-only">
+            <div class="flex border-b border-gray-200 mb-6">
+                <button class="px-4 py-2 text-lg text-gray-600 tab-button active" onclick="switchTab('staff')">Staff Panel</button>
+                <button class="px-4 py-2 text-lg text-gray-600 tab-button" onclick="switchTab('sales')">Sales Panel</button>
+                <button class="px-4 py-2 text-lg text-gray-600 tab-button" onclick="switchTab('business')">Business Panel</button>
+                <button class="px-4 py-2 text-lg text-gray-600 tab-button" onclick="switchTab('data-report')">Data & Report</button>
+            </div>
+
+            <div id="staff-tab" class="tab-content space-y-6">
+                <div class="border border-green-700 p-4 rounded-lg shadow-md bg-white" id="staff-management-section">
+                    <h2 class="text-green-700 text-xl mb-4">Staff Management</h2>
+                    <div class="flex flex-col sm:flex-row gap-4 items-center mb-6">
+                        <label for="staff-name" class="w-full sm:w-auto">Staff Name:</label>
+                        <input type="text" id="staff-name" class="border p-2 rounded-lg w-full sm:flex-1" placeholder="Enter staff name" />
+                        <button onclick="addStaff()" class="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg w-full sm:w-auto">Add Staff</button>
+                    </div>
+                    <div class="mt-4"><h3 class="text-lg text-gray-800 mb-2">Current Staff List:</h3><ul id="staff-list" class="list-disc list-inside text-gray-700"></ul></div>
+                    
+                    <div class="border border-dashed border-gray-400 p-4 mt-6 rounded-lg">
+                        <h3 class="text-lg text-gray-800 mb-4">Today Working Staff</h3>
+                        <div id="working-staff-checklist" class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4"></div>
+                        <button onclick="saveWorkingStaff()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg w-full">Save Working Staff</button>
+                    </div>
+                </div>
+                
+                <div class="border border-blue-700 p-4 rounded-lg shadow-md bg-white" id="attendance-records-section">
+                    <h2 class="text-blue-700 text-xl mb-4">Staff Attendance Records</h2>
+                    <div class="overflow-x-auto">
+                        <table>
+                            <thead class="bg-blue-700 text-white">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Staff Name</th>
+                                    <th>Login Time</th>
+                                    <th>Logout Time</th>
+                                    <th>Status</th>
+                                    <th class="no-print">Selfie</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendance-table-body">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="border border-blue-700 p-4 rounded-lg shadow-md bg-white" id="staff-advance-section">
+                    <h2 class="text-blue-700 text-xl mb-4">Staff Advance Management</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 items-end no-print">
+                        <label class="block">Date: <input type="date" id="advance-date" class="border p-2 w-full rounded-lg" /></label>
+                        <label class="block">Staff Name: <select id="advance-staff" class="border p-2 w-full rounded-lg"><option value="">Select Staff</option></select></label>
+                        <label class="block">Advance (RM): <input type="number" id="advance-amount" placeholder="e.g., 1000" class="border p-2 w-full rounded-lg" /></label>
+                    </div>
+                    <div class="flex justify-center mb-4 no-print"><button onclick="addStaffAdvance()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">Add Advance</button></div>
+                    <div class="overflow-x-auto">
+                        <table>
+                            <thead class="bg-blue-700 text-white">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Staff</th>
+                                    <th>Advance</th>
+                                    <th>Deducted</th>
+                                    <th>Balance</th>
+                                    <th>Status</th>
+                                    <th class="no-print w-1/4 admin-only">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="staff-advances-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="sales-tab" class="tab-content hidden space-y-6">
+                <div class="border border-green-700 p-4 rounded-lg shadow-md bg-white no-print" id="daily-entry-section">
+                    <h2 class="text-green-700 text-xl mb-4">Daily Entry</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        <label class="block">No: <input type="text" id="entry-no" class="border p-2 w-full rounded-lg bg-gray-100" readonly /></label>
+                        <label class="block">Date: <input type="date" id="entry-date" class="border p-2 w-full rounded-lg" /></label>
+                        <label class="block">Staff Name: <select id="entry-staff" class="border p-2 w-full rounded-lg"><option value="">Select Staff</option></select></label>
+                        <label class="block">Package:
+                            <select id="entry-package" onchange="updateDailyEntryFields()" class="border p-2 w-full rounded-lg">
+                                <option value="">Select Package</option>
+                                <option value="A">Package A - RM50 (Comm: RM27, 60m)</option>
+                                <option value="B">Package B - RM70 (Comm: RM35, 60m)</option>
+                                <option value="C">Package C - RM75 (Comm: RM41, 90m)</option>
+                                <option value="D">Package D - RM100 (Comm: RM53, 90m)</option>
+                                <option value="E">Package E - RM120 (Comm: RM62, 120m)</option>
+                                <option value="F">Package F - RM130 (Comm: RM70, 120m)</option>
+                                <option value="G">Package G - RM100 (Comm: RM52, 120m)</option>
+                            </select>
+                        </label>
+                        <label class="block">Time In: <input type="time" id="entry-time-in" oninput="updateTimeOutFromTimeIn()" class="border p-2 w-full rounded-lg" /></label>
+                        <label class="block">Time Out: <input type="time" id="entry-time-out" class="border p-2 w-full rounded-lg" /></label>
+                        <label class="block">Commission: <input type="text" id="entry-commission" class="border p-2 w-full rounded-lg bg-gray-100" readonly /></label>
+                        <label class="block">Sales: <input type="text" id="entry-sales" class="border p-2 w-full rounded-lg bg-gray-100" readonly /></label>
+                        <label class="block">Payment: <select id="entry-payment" class="border p-2 w-full rounded-lg"><option value="Cash">Cash</option><option value="Online">Online</option></select></label>
+                        <label class="block">Customer: <select id="entry-customer-type" class="border p-2 w-full rounded-lg"><option value="New">New</option><option value="Regular">Regular</option></select></label>
+                        <label class="block">Gender: <select id="entry-gender" class="border p-2 w-full rounded-lg"><option value="Male">Male</option><option value="Female">Female</option></select></label>
+                        <label class="flex items-center space-x-2 pt-6"><input type="checkbox" id="entry-booking" class="h-5 w-5 rounded"/><span>Booking</span></label>
+                    </div>
+                    <div class="mt-6 flex justify-center"><button onclick="addDailyEntry()" class="bg-green-700 hover:bg-green-800 text-white px-6 py-3 rounded-lg text-lg">Add Daily Entry</button></div>
+                </div>
+
+                <div id="daily-log-and-summary-section">
+                    <div class="border border-green-700 p-4 rounded-lg shadow-md bg-white">
+                        <h2 class="text-green-700 text-xl mb-4">Today's Sales Summary</h2>
+                        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                            <label class="block">Total Cash: <input type="text" id="today-total-cash" class="border p-2 w-full rounded-lg bg-gray-100" readonly /></label>
+                            <label class="block">Total Online: <input type="text" id="today-total-online" class="border p-2 w-full rounded-lg bg-gray-100" readonly /></label>
+                            <label class="block">Total Sales: <input type="text" id="today-total-sales" class="border p-2 w-full rounded-lg bg-gray-100 font-extrabold" readonly /></label>
+                            <label class="block">Total Commission: <input type="text" id="today-total-commission" class="border p-2 w-full rounded-lg bg-gray-100" readonly /></label>
+                        </div>
+                    </div>
+
+                    <div class="border border-green-700 p-4 rounded-lg shadow-md bg-white mt-6" id="daily-entries-log-section">
+                        <h2 class="text-green-700 text-xl mb-4">Daily Entries Log</h2>
+                        <div class="overflow-x-auto">
+                            <table>
+                                <thead class="bg-green-700 text-white">
+                                    <tr>
+                                        <th>No.</th>
+                                        <th>Date</th>
+                                        <th>Staff</th>
+                                        <th>Package</th>
+                                        <th>Time In</th>
+                                        <th>Time Out</th>
+                                        <th>Comm (RM)</th>
+                                        <th>Sales (RM)</th>
+                                        <th>Payment</th>
+                                        <th class="text-center">Booking</th>
+                                        <th class="actions-column">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="daily-entries-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border border-red-700 p-4 rounded-lg shadow-md bg-white no-print" id="end-of-day-section">
+                    <h2 class="text-red-700 text-xl mb-4">End of Day Process</h2>
+                    <p class="text-gray-600 mb-4 font-normal">Finalize today's entries. This archives the log and **automatically downloads a data backup**.</p>
+                    <button onclick="closeDay()" class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg text-lg w-full">Close Day & Save Backup</button>
+                </div>
+
+            </div>
+
+            <div id="business-tab" class="tab-content hidden space-y-6">
+                <div class="border border-green-700 p-4 rounded-lg shadow-md bg-white admin-only" id="business-summary-section">
+                    <h2 class="text-green-700 text-xl mb-4">Business Summary</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <label class="block">Filter Date Range: <input type="date" id="summary-date-start" class="border p-2 w-full rounded-lg" /><input type="date" id="summary-date-end" class="border p-2 w-full rounded-lg mt-2" /></label>
+                    </div>
+                    <div class="flex justify-center mb-4 no-print"><button onclick="renderBusinessSummary()" class="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg">Generate Summary</button></div>
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
+                        <label class="block">Total New: <input type="text" id="summary-total-new" class="border p-2 w-full rounded-lg bg-gray-100" readonly /></label>
+                        <label class="block">Total Regular: <input type="text" id="summary-total-regular" class="border p-2 w-full rounded-lg bg-gray-100" readonly /></label>
+                        <label class="block">Total Male: <input type="text" id="summary-total-male" class="border p-2 w-full rounded-lg bg-gray-100" readonly /></label>
+                        <label class="block">Total Female: <input type="text" id="summary-total-female" class="border p-2 w-full rounded-lg bg-gray-100" readonly /></label>
+                        <label class="block">Total Bookings: <input type="text" id="summary-total-bookings" class="border p-2 w-full rounded-lg bg-gray-100" readonly /></label>
+                        <label class="block">Highest Package: <input type="text" id="summary-highest-package" class="border p-2 w-full rounded-lg bg-gray-100" readonly /></label>
+                        <label class="block col-span-2">Highest Perf. Staff: <input type="text" id="summary-highest-staff" class="border p-2 w-full rounded-lg bg-gray-100" readonly /></label>
+                    </div>
+                    <h3 class="text-lg text-gray-800 mb-2">Daily Sales Graph</h3>
+                    <div class="relative h-72"><canvas id="salesChart"></canvas></div>
+                </div>
+
+                <div class="border border-green-700 p-4 rounded-lg shadow-md bg-white" id="profit-calculation-section">
+                    <h2 class="text-green-700 text-xl mb-4">Monthly Profit Calculation</h2>
+                    <div class="flex items-end gap-4 mb-4">
+                        <label class="block flex-1">Select Month: <input type="month" id="profit-month" onchange="renderMonthlyProfit()" class="border p-2 w-full rounded-lg" /></label>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div class="p-4 bg-green-50 rounded-lg">
+                            <label class="block text-lg">Total Revenue: <input type="text" id="profit-total-revenue" class="border p-2 w-full rounded-lg bg-gray-100 text-xl mt-1" readonly /></label>
+                        </div>
+                        <div class="p-4 bg-red-50 rounded-lg">
+                            <label class="block text-lg">Total Expenses: <input type="text" id="profit-total-expenses" class="border p-2 w-full rounded-lg bg-gray-100 text-xl mt-1" readonly /></label>
+                        </div>
+                        <div class="p-4 bg-blue-50 rounded-lg">
+                            <label class="block text-lg">Net Balance: <input type="text" id="profit-net-balance" class="border p-2 w-full rounded-lg bg-gray-100 text-xl mt-1" readonly /></label>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 no-print">
+                        <div class="border p-4 rounded-lg">
+                            <h3 class="text-red-700 text-lg mb-2">Add Manual Debit (Expense)</h3>
+                            <input type="number" id="debit-amount" placeholder="Amount (e.g., 500)" class="border p-2 w-full rounded-lg mb-2" />
+                            <input type="text" id="debit-desc" placeholder="Description (e.g., Rent)" class="border p-2 w-full rounded-lg mb-2" />
+                            <button onclick="addManualTransaction('debit')" class="bg-red-600 text-white px-4 py-2 rounded-lg w-full">Add Debit</button>
+                            <div class="mt-4">
+                                <h4 class="font-semibold">Last 3 Debits:</h4>
+                                <ul id="debit-list" class="text-sm font-normal space-y-1 mt-2"></ul>
+                            </div>
+                        </div>
+                        <div class="border p-4 rounded-lg">
+                            <h3 class="text-green-700 text-lg mb-2">Add Manual Credit (Revenue)</h3>
+                            <input type="number" id="credit-amount" placeholder="Amount (e.g., 100)" class="border p-2 w-full rounded-lg mb-2" />
+                            <input type="text" id="credit-desc" placeholder="Description (e.g., Product Sale)" class="border p-2 w-full rounded-lg mb-2" />
+                            <button onclick="addManualTransaction('credit')" class="bg-green-600 text-white px-4 py-2 rounded-lg w-full">Add Credit</button>
+                            <div class="mt-4">
+                                <h4 class="font-semibold">Last 3 Credits:</h4>
+                                <ul id="credit-list" class="text-sm font-normal space-y-1 mt-2"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border border-green-700 p-4 rounded-lg shadow-md bg-white no-print" id="commission-summary-section">
+                    <h2 class="text-green-700 text-xl mb-4">Commission Summary</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <label class="block">Filter by Staff: <select id="filter-staff" class="border p-2 w-full rounded-lg"><option value="">All Staff</option></select></label>
+                        <label class="block">Filter by Date Range: <input type="date" id="filter-date-start" class="border p-2 w-full rounded-lg" /><input type="date" id="filter-date-end" class="border p-2 w-full rounded-lg mt-2" /></label>
+                    </div>
+                    <div class="flex justify-center mb-4 no-print"><button onclick="renderCommissionSummary()" class="bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg">Apply Filter</button></div>
+                    <div class="overflow-x-auto mb-4">
+                        <table>
+                            <thead class="bg-green-700 text-white">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Commission (RM)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="commission-table-body"></tbody>
+                        </table>
+                    </div>
+                    <label class="block">Total Commission: <input type="text" id="total-commission" class="border p-2 w-full rounded-lg bg-gray-100" readonly/></label>
+                </div>
+            </div>
+
+            <div id="data-report-tab" class="tab-content hidden space-y-6">
+                <div class="border border-gray-400 p-4 rounded-lg shadow-md bg-white space-y-4 no-print admin-only" id="management-and-print-section">
+                    <h2 class="text-gray-800 text-xl mb-4 text-center">Data & Reports</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <h3 class="text-lg mb-2 text-center">Data Management</h3>
+                            <div class="flex flex-col items-center gap-4">
+                                <button onclick="downloadJSON()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg w-48">Download Data</button>
+                                <label class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg cursor-pointer w-48 text-center">
+                                    Upload Data
+                                    <input type="file" class="hidden" onchange="uploadJSON(this)" accept=".json">
+                                </label>
+                                <button onclick="confirmResetAllData()" class="bg-red-800 hover:bg-red-900 text-white px-4 py-2 rounded-lg w-48">Reset All Data</button>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-lg mb-2 text-center">Save Reports as PDF</h3>
+                            <div class="flex flex-col items-center gap-4">
+                                <button onclick="generatePdfForSection('daily-log-and-summary-section', 'Daily_Log.pdf')" class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg w-48">Daily Log Report</button>
+                                <button onclick="generatePdfForSection('commission-summary-section', 'Commission_Summary.pdf')" class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg w-48">Commission Summary</button>
+                                <button onclick="generatePdfForSection('business-summary-section', 'Business_Summary.pdf')" class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg w-48">Business Summary</button>
+                                <button onclick="generatePdfForSection('profit-calculation-section', 'Profit_Report.pdf')" class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg w-48">Profit Report</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    
+    <script>
+        const ADMIN_PASSWORD = "320408";
+        const STAFF_PASSWORD = "505050";
+        let blindShopData;
+        let currentUserRole = null;
+        let currentStaffUser = null;
+        
+        const PACKAGES = {
+            'A': { sales: 50, commission: 27, duration: 60 },
+            'B': { sales: 70, commission: 35, duration: 60 },
+            'C': { sales: 75, commission: 41, duration: 90 },
+            'D': { sales: 100, commission: 53, duration: 90 },
+            'E': { sales: 120, commission: 62, duration: 120 },
+            'F': { sales: 130, commission: 70, duration: 120 },
+            'G': { sales: 100, commission: 52, duration: 120 }
+        };
+
+        function showMessageBox(content) {
+            document.getElementById('messageBoxContent').innerHTML = content;
+            document.getElementById('overlay').style.display = 'block';
+            document.getElementById('messageBox').style.display = 'block';
+        }
+
+        function hideMessageBox() {
+            document.getElementById('overlay').style.display = 'none';
+            document.getElementById('messageBox').style.display = 'none';
+        }
+
+        function saveBlindShopData() {
+            localStorage.setItem("blindShopData", JSON.stringify(blindShopData));
+        }
+
+        function initApp() {
+            const storedData = localStorage.getItem("blindShopData");
+            if (storedData) {
+                blindShopData = JSON.parse(storedData);
+            } else {
+                blindShopData = {
+                    staffList: [],
+                    currentDayEntries: [],
+                    archives: [],
+                    advances: [],
+                    manualTransactions: [],
+                    currentDayWorkingStaff: [],
+                    attendanceRecords: []
+                };
+                saveBlindShopData();
+            }
+            updateUI();
+            updateDailyEntryFields();
+            renderStaffAdvances();
+            renderManualTransactions();
+            updatePasswordPanelCustomerCount();
+            updateFrontPanelCustomerCount();
+            renderWorkingStaffList();
+            renderWorkingStaffChecklist();
+            
+            const today = new Date();
+            const todayISO = today.toISOString().split('T')[0];
+            const currentTime = today.toTimeString().split(' ')[0].substring(0, 5);
+            document.getElementById('entry-date').value = todayISO;
+            document.getElementById('entry-time-in').value = currentTime;
+        }
+
+        function updatePasswordPanelCustomerCount() {
+            const customerCount = blindShopData.archives.reduce((total, archive) => {
+                const dayEntries = archive.entries;
+                return total + dayEntries.length;
+            }, 0) + blindShopData.currentDayEntries.length;
+            document.getElementById('password-panel-customer-count').textContent = customerCount;
+        }
+
+        function updateFrontPanelCustomerCount() {
+            const customerCount = blindShopData.archives.reduce((total, archive) => {
+                const dayEntries = archive.entries;
+                return total + dayEntries.length;
+            }, 0) + blindShopData.currentDayEntries.length;
+            document.getElementById('total-customers').textContent = customerCount;
+        }
+
+        function checkLogin() {
+            const password = document.getElementById('password').value;
+            const today = new Date().toISOString().split('T')[0];
+
+            if (password === ADMIN_PASSWORD) {
+                currentUserRole = 'admin';
+                currentStaffUser = null;
+                document.getElementById('login-section').classList.add('hidden');
+                document.getElementById('app').classList.remove('hidden');
+                document.getElementById('password').value = '';
+                applyRolePermissions();
+                switchTab('staff');
+            } else if (password === STAFF_PASSWORD) {
+                const availableStaff = blindShopData.currentDayWorkingStaff.filter(
+                    staffName => !blindShopData.attendanceRecords.some(
+                        record => record.staff === staffName && record.date === today && record.status === 'Active'
+                    )
+                );
+
+                if (availableStaff.length > 0) {
+                    currentUserRole = 'staff';
+                    document.getElementById('login-section').classList.add('hidden');
+                    document.getElementById('app').classList.remove('hidden');
+                    document.getElementById('password').value = '';
+                    applyRolePermissions();
+                    openAttendanceModal(availableStaff);
+                } else {
+                    showMessageBox('<p>There are no working staff available to log in. Please check the working staff list.</p>');
+                }
+
+            } else {
+                showMessageBox('<p>Invalid password. Please try again.</p>');
+            }
+        }
+        
+        function openAttendanceModal(availableStaff) {
+            const staffSelector = document.getElementById('attendance-staff-name');
+            staffSelector.innerHTML = '<option value="">Select Staff</option>';
+            availableStaff.forEach(staff => {
+                const option = document.createElement('option');
+                option.value = staff;
+                option.textContent = staff;
+                staffSelector.appendChild(option);
+            });
+            document.getElementById('attendance-modal').classList.remove('hidden');
+        }
+
+        function triggerCamera() {
+            const selectedStaff = document.getElementById('attendance-staff-name').value;
+            if (!selectedStaff) {
+                showMessageBox('<p>Please select your name to continue.</p>');
+                return;
+            }
+
+            const cameraInput = document.getElementById('camera-input');
+            cameraInput.click();
+            cameraInput.onchange = (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const today = new Date().toISOString().split('T')[0];
+                        const newRecord = {
+                            id: Date.now(),
+                            staff: selectedStaff,
+                            date: today,
+                            loginTime: new Date().toTimeString().split(' ')[0].substring(0, 5),
+                            logoutTime: null,
+                            status: 'Active',
+                            selfieData: reader.result
+                        };
+                        blindShopData.attendanceRecords.push(newRecord);
+                        saveBlindShopData();
+                        currentStaffUser = selectedStaff;
+                        closeAttendanceModal();
+                        applyRolePermissions();
+                        showMessageBox(`<p>Welcome, ${currentStaffUser}! You are now logged in.</p>`);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+        }
+
+        function closeAttendanceModal() {
+            document.getElementById('attendance-modal').classList.add('hidden');
+            document.getElementById('camera-input').value = '';
+        }
+
+        function logout() {
+            if (currentUserRole === 'staff') {
+                const today = new Date().toISOString().split('T')[0];
+                const activeRecord = blindShopData.attendanceRecords.find(rec => rec.staff === currentStaffUser && rec.date === today && rec.status === 'Active');
+                if (activeRecord) {
+                    activeRecord.logoutTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+                    activeRecord.status = 'Logged Out';
+                    saveBlindShopData();
+                    showMessageBox(`<p>${currentStaffUser}, you have successfully logged out.</p>`);
+                } else {
+                    showMessageBox(`<p>No active login record found for ${currentStaffUser}.</p>`);
+                }
+                currentUserRole = null;
+                currentStaffUser = null;
+                document.getElementById('app').classList.add('hidden');
+                document.getElementById('login-section').classList.remove('hidden');
+                updatePasswordPanelCustomerCount();
+                updateFrontPanelCustomerCount();
+                applyRolePermissions();
+            } else {
+                currentUserRole = null;
+                currentStaffUser = null;
+                document.getElementById('app').classList.add('hidden');
+                document.getElementById('login-section').classList.remove('hidden');
+                updatePasswordPanelCustomerCount();
+                updateFrontPanelCustomerCount();
+                applyRolePermissions();
+            }
+        }
+
+        function applyRolePermissions() {
+            const adminOnlyElements = document.querySelectorAll('.admin-only');
+            const tabsContainer = document.querySelector('.admin-only');
+            const staffOnlyElements = document.querySelectorAll('.staff-only');
+            const allSections = document.querySelectorAll('#app .tab-content > div');
+
+            if (currentUserRole === 'admin') {
+                adminOnlyElements.forEach(el => el.style.display = '');
+                tabsContainer.style.display = 'block';
+                allSections.forEach(section => section.classList.remove('hidden'));
+                document.getElementById('daily-entry-section').classList.remove('hidden');
+                document.getElementById('daily-log-and-summary-section').classList.remove('hidden');
+                document.getElementById('end-of-day-section').classList.remove('hidden');
+
+            } else if (currentUserRole === 'staff') {
+                adminOnlyElements.forEach(el => el.style.display = 'none');
+                tabsContainer.style.display = 'none';
+                allSections.forEach(section => section.classList.add('hidden'));
+                document.getElementById('daily-entry-section').classList.remove('hidden');
+                document.getElementById('daily-log-and-summary-section').classList.remove('hidden');
+                document.getElementById('daily-entries-log-section').classList.remove('hidden');
+                document.getElementById('end-of-day-section').classList.add('hidden');
+                
+                document.getElementById('entry-staff').value = currentStaffUser;
+                document.getElementById('entry-staff').disabled = true;
+
+            } else {
+                document.getElementById('app').classList.add('hidden');
+                document.getElementById('login-section').classList.remove('hidden');
+                document.getElementById('entry-staff').disabled = false;
+            }
+        }
+
+        function switchTab(tabId) {
+            const tabs = document.querySelectorAll('.tab-button');
+            const contents = document.querySelectorAll('.tab-content');
+
+            tabs.forEach(tab => tab.classList.remove('active'));
+            contents.forEach(content => content.classList.add('hidden'));
+
+            const selectedTabButton = document.querySelector(`[onclick="switchTab('${tabId}')"]`);
+            if (selectedTabButton) {
+                selectedTabButton.classList.add('active');
+            }
+            
+            const selectedTabContent = document.getElementById(`${tabId}-tab`);
+            if (selectedTabContent) {
+                selectedTabContent.classList.remove('hidden');
+            }
+        }
+        
+        function renderAttendanceRecords() {
+            const tableBody = document.getElementById('attendance-table-body');
+            tableBody.innerHTML = '';
+            blindShopData.attendanceRecords.forEach(record => {
+                const row = tableBody.insertRow();
+                const selfieButton = record.selfieData ? `<button onclick="showSelfiePopup('${record.selfieData}')" class="bg-blue-500 text-white px-2 py-1 rounded-lg text-xs">View</button>` : '-';
+                row.innerHTML = `
+                    <td>${record.date}</td>
+                    <td>${record.staff}</td>
+                    <td>${record.loginTime}</td>
+                    <td>${record.logoutTime || '-'}</td>
+                    <td>${record.status}</td>
+                    <td class="no-print">${selfieButton}</td>
+                `;
+            });
+        }
+        
+        function showSelfiePopup(imageData) {
+            const popupContent = `
+                <img src="${imageData}" alt="Selfie" class="max-w-xs md:max-w-md lg:max-w-lg mx-auto">
+                <p class="mt-4 text-center">Selfie Record</p>
+            `;
+            showMessageBox(popupContent);
+        }
+
+        function updateUI() {
+            renderStaffList();
+            renderDailyEntries();
+            updateDailySummary();
+            updateStaffDropdowns();
+            renderCommissionSummary();
+            renderBusinessSummary();
+            renderMonthlyProfit();
+            renderWorkingStaffChecklist();
+            renderWorkingStaffList();
+            renderAttendanceRecords();
+            applyRolePermissions();
+        }
+        
+        function renderWorkingStaffChecklist() {
+            const checklist = document.getElementById('working-staff-checklist');
+            checklist.innerHTML = '';
+            blindShopData.staffList.forEach(staff => {
+                const isWorking = blindShopData.currentDayWorkingStaff.includes(staff.name);
+                const div = document.createElement('div');
+                div.className = 'flex items-center space-x-2';
+                div.innerHTML = `
+                    <input type="checkbox" id="staff-${staff.name}" value="${staff.name}" ${isWorking ? 'checked' : ''} class="h-5 w-5 rounded"/>
+                    <label for="staff-${staff.name}">${staff.name}</label>
+                `;
+                checklist.appendChild(div);
+            });
+        }
+
+        function saveWorkingStaff() {
+            const checkboxes = document.querySelectorAll('#working-staff-checklist input[type="checkbox"]');
+            blindShopData.currentDayWorkingStaff = Array.from(checkboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.value);
+            saveBlindShopData();
+            renderWorkingStaffList();
+            showMessageBox('<p>Working staff list saved!</p>');
+        }
+        
+        function renderWorkingStaffList() {
+            const list = document.getElementById('working-staff-list');
+            list.innerHTML = '';
+            if (blindShopData.currentDayWorkingStaff.length > 0) {
+                blindShopData.currentDayWorkingStaff.forEach(staff => {
+                    const li = document.createElement('li');
+                    li.textContent = staff;
+                    list.appendChild(li);
+                });
+            } else {
+                list.innerHTML = '<li class="italic text-sm">No staff selected.</li>';
+            }
+        }
+
+        function updateStaffDropdowns() {
+            const staffSelects = document.querySelectorAll('#entry-staff, #filter-staff, #advance-staff');
+            staffSelects.forEach(select => {
+                const selectedValue = select.value;
+                select.innerHTML = select.id === 'filter-staff' ? '<option value="">All Staff</option>' : '<option value="">Select Staff</option>';
+                blindShopData.staffList.forEach(staff => {
+                    const option = document.createElement('option');
+                    option.value = staff.name;
+                    option.textContent = staff.name;
+                    select.appendChild(option);
+                });
+                if (selectedValue) {
+                    select.value = selectedValue;
+                }
+            });
+        }
+
+        function addStaff() {
+            const staffNameInput = document.getElementById('staff-name');
+            const staffName = staffNameInput.value.trim();
+            if (staffName && !blindShopData.staffList.some(s => s.name === staffName)) {
+                blindShopData.staffList.push({ name: staffName });
+                saveBlindShopData();
+                staffNameInput.value = '';
+                updateUI();
+                showMessageBox(`<p>${staffName} added successfully!</p>`);
+            } else if (!staffName) {
+                showMessageBox('<p>Staff name cannot be empty.</p>');
+            } else {
+                showMessageBox('<p>Staff member already exists.</p>');
+            }
+        }
+
+        function renderStaffList() {
+            const staffListUl = document.getElementById('staff-list');
+            staffListUl.innerHTML = '';
+            blindShopData.staffList.forEach((staff, index) => {
+                const li = document.createElement('li');
+                li.className = 'staff-list-item';
+                li.innerHTML = `<span>${staff.name}</span><button onclick="removeStaff(${index})" class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded-lg text-xs">Remove</button>`;
+                staffListUl.appendChild(li);
+            });
+        }
+
+        function removeStaff(index) {
+            blindShopData.staffList.splice(index, 1);
+            saveBlindShopData();
+            updateUI();
+            showMessageBox('<p>Staff member removed.</p>');
+        }
+
+        function updateDailyEntryFields() {
+            const packageSelect = document.getElementById('entry-package');
+            const commissionInput = document.getElementById('entry-commission');
+            const salesInput = document.getElementById('entry-sales');
+            const selectedPackage = packageSelect.value;
+            let packageData = PACKAGES[selectedPackage];
+            
+            if (packageData) {
+                commissionInput.value = packageData.commission;
+                salesInput.value = packageData.sales;
+                updateTimeOutFromTimeIn(packageData.duration);
+            } else {
+                commissionInput.value = '';
+                salesInput.value = '';
+                updateTimeOutFromTimeIn(0);
+            }
+        }
+
+        function updateTimeOutFromTimeIn(durationOverride) {
+            const timeInInput = document.getElementById('entry-time-in');
+            const timeOutInput = document.getElementById('entry-time-out');
+            const packageSelect = document.getElementById('entry-package');
+            const selectedPackage = packageSelect.value;
+            let duration = durationOverride;
+            if (duration === undefined) {
+                const packageData = PACKAGES[selectedPackage];
+                duration = packageData ? packageData.duration : 0;
+            }
+
+            if (timeInInput.value && duration > 0) {
+                const [hours, minutes] = timeInInput.value.split(':').map(Number);
+                const timeIn = new Date();
+                timeIn.setHours(hours, minutes, 0, 0);
+                timeIn.setMinutes(timeIn.getMinutes() + duration);
+                const newHours = timeIn.getHours().toString().padStart(2, '0');
+                const newMinutes = timeIn.getMinutes().toString().padStart(2, '0');
+                timeOutInput.value = `${newHours}:${newMinutes}`;
+            }
+        }
+
+        function addDailyEntry() {
+            const entryDate = document.getElementById('entry-date').value;
+            const entryStaff = document.getElementById('entry-staff').value;
+            const entryPackage = document.getElementById('entry-package').value;
+            const entryTimeIn = document.getElementById('entry-time-in').value;
+            const entryTimeOut = document.getElementById('entry-time-out').value;
+            const entryCommission = parseFloat(document.getElementById('entry-commission').value);
+            const entrySales = parseFloat(document.getElementById('entry-sales').value);
+            const entryPayment = document.getElementById('entry-payment').value;
+            const entryCustomerType = document.getElementById('entry-customer-type').value;
+            const entryGender = document.getElementById('entry-gender').value;
+            const entryBooking = document.getElementById('entry-booking').checked;
+
+            if (!entryDate || !entryStaff || !entryPackage || !entryTimeIn || !entryTimeOut || isNaN(entryCommission) || isNaN(entrySales)) {
+                showMessageBox('<p>Please fill in all required fields.</p>');
+                return;
+            }
+
+            if (currentUserRole === 'staff' && entryStaff !== currentStaffUser) {
+                showMessageBox(`<p>You can only create entries for yourself, ${currentStaffUser}.</p>`);
+                return;
+            }
+
+            const newEntry = {
+                no: blindShopData.currentDayEntries.length + 1,
+                date: entryDate,
+                staff: entryStaff,
+                package: entryPackage,
+                timeIn: entryTimeIn,
+                timeOut: entryTimeOut,
+                commission: entryCommission,
+                sales: entrySales,
+                payment: entryPayment,
+                customerType: entryCustomerType,
+                gender: entryGender,
+                booking: entryBooking
+            };
+
+            blindShopData.currentDayEntries.push(newEntry);
+            saveBlindShopData();
+            renderDailyEntries();
+            updateDailySummary();
+            updatePasswordPanelCustomerCount();
+            updateFrontPanelCustomerCount();
+            showMessageBox('<p>Daily entry added successfully!</p>');
+        }
+        
+        function renderDailyEntries() {
+            const tableBody = document.getElementById('daily-entries-table-body');
+            tableBody.innerHTML = '';
+            blindShopData.currentDayEntries.forEach((entry, index) => {
+                const isStaff = currentUserRole === 'staff';
+                const isMyEntry = isStaff && entry.staff === currentStaffUser;
+                const canEditPayment = isMyEntry || currentUserRole === 'admin';
+                const canEditPackage = currentUserRole === 'admin';
+                const canDelete = currentUserRole === 'admin';
+                
+                const packageDropdown = canEditPackage ? `
+                    <select onchange="updateEntryPackage(${index}, this.value)">
+                        ${Object.keys(PACKAGES).map(pkg => `<option value="${pkg}" ${entry.package === pkg ? 'selected' : ''}>${pkg}</option>`).join('')}
+                    </select>
+                ` : entry.package;
+
+                const paymentDropdown = canEditPayment ? `
+                    <select onchange="updateEntryPayment(${index}, this.value)">
+                        <option value="Cash" ${entry.payment === 'Cash' ? 'selected' : ''}>Cash</option>
+                        <option value="Online" ${entry.payment === 'Online' ? 'selected' : ''}>Online</option>
+                    </select>
+                ` : entry.payment;
+                
+                const actionsHtml = `
+                    <button onclick="editDailyEntry(${index})" class="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded-lg text-xs">Edit</button>
+                    ${canDelete ? `<button onclick="deleteDailyEntry(${index})" class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded-lg text-xs">Delete</button>` : ''}
+                `;
+
+                const row = tableBody.insertRow();
+                row.innerHTML = `
+                    <td>${entry.no}</td>
+                    <td>${entry.date}</td>
+                    <td>${entry.staff}</td>
+                    <td>${packageDropdown}</td>
+                    <td>${entry.timeIn}</td>
+                    <td>${entry.timeOut}</td>
+                    <td>${entry.commission.toFixed(2)}</td>
+                    <td>${entry.sales.toFixed(2)}</td>
+                    <td>${paymentDropdown}</td>
+                    <td class="text-center">${entry.booking ? '✅' : '❌'}</td>
+                    <td class="actions-column">${actionsHtml}</td>
+                `;
+            });
+            applyRolePermissions();
+        }
+
+        function updateEntryPayment(index, newPaymentMethod) {
+            blindShopData.currentDayEntries[index].payment = newPaymentMethod;
+            saveBlindShopData();
+            updateDailySummary();
+            showMessageBox('<p>Payment method updated successfully!</p>');
+        }
+        
+        function updateEntryPackage(index, newPackage) {
+            const entry = blindShopData.currentDayEntries[index];
+            const packageData = PACKAGES[newPackage];
+            if (packageData) {
+                entry.package = newPackage;
+                entry.commission = packageData.commission;
+                entry.sales = packageData.sales;
+                updateTimeOutFromTimeIn(packageData.duration);
+                saveBlindShopData();
+                renderDailyEntries();
+                updateDailySummary();
+                showMessageBox('<p>Package and commission updated successfully!</p>');
+            }
+        }
+
+        function editDailyEntry(index) {
+            const entry = blindShopData.currentDayEntries[index];
+            document.getElementById('entry-no').value = entry.no;
+            document.getElementById('entry-date').value = entry.date;
+            document.getElementById('entry-staff').value = entry.staff;
+            document.getElementById('entry-package').value = entry.package;
+            document.getElementById('entry-time-in').value = entry.timeIn;
+            document.getElementById('entry-time-out').value = entry.timeOut;
+            document.getElementById('entry-commission').value = entry.commission;
+            document.getElementById('entry-sales').value = entry.sales;
+            document.getElementById('entry-payment').value = entry.payment;
+            document.getElementById('entry-customer-type').value = entry.customerType;
+            document.getElementById('entry-gender').value = entry.gender;
+            document.getElementById('entry-booking').checked = entry.booking;
+
+            deleteDailyEntry(index);
+        }
+
+        function deleteDailyEntry(index) {
+            blindShopData.currentDayEntries.splice(index, 1);
+            blindShopData.currentDayEntries.forEach((entry, i) => entry.no = i + 1);
+            saveBlindShopData();
+            renderDailyEntries();
+            updateDailySummary();
+            updatePasswordPanelCustomerCount();
+            updateFrontPanelCustomerCount();
+            showMessageBox('<p>Daily entry deleted.</p>');
+        }
+
+        function updateDailySummary() {
+            const totalCashSales = blindShopData.currentDayEntries.filter(e => e.payment === 'Cash').reduce((sum, e) => sum + e.sales, 0);
+            const totalOnlineSales = blindShopData.currentDayEntries.filter(e => e.payment === 'Online').reduce((sum, e) => sum + e.sales, 0);
+            const totalSales = totalCashSales + totalOnlineSales;
+            const totalCommission = blindShopData.currentDayEntries.reduce((sum, e) => sum + e.commission, 0);
+
+            document.getElementById('today-total-cash').value = totalCashSales.toFixed(2);
+            document.getElementById('today-total-online').value = totalOnlineSales.toFixed(2);
+            document.getElementById('today-total-sales').value = totalSales.toFixed(2);
+            document.getElementById('today-total-commission').value = totalCommission.toFixed(2);
+        }
+
+        function renderCommissionSummary() {
+            const staffFilter = document.getElementById('filter-staff').value;
+            const startDate = document.getElementById('filter-date-start').value;
+            const endDate = document.getElementById('filter-date-end').value;
+            const allEntries = [...blindShopData.currentDayEntries, ...blindShopData.archives.flatMap(a => a.entries)];
+            const tableBody = document.getElementById('commission-table-body');
+            tableBody.innerHTML = '';
+            let totalCommission = 0;
+
+            const filteredEntries = allEntries.filter(entry => {
+                const entryDate = new Date(entry.date);
+                const start = startDate ? new Date(startDate) : null;
+                const end = endDate ? new Date(endDate) : null;
+                const matchesStaff = !staffFilter || entry.staff === staffFilter;
+                const matchesDate = (!start || entryDate >= start) && (!end || entryDate <= end);
+                return matchesStaff && matchesDate;
+            });
+
+            filteredEntries.forEach(entry => {
+                const row = tableBody.insertRow();
+                row.innerHTML = `<td>${entry.date}</td><td>${entry.commission.toFixed(2)}</td>`;
+                totalCommission += entry.commission;
+            });
+
+            document.getElementById('total-commission').value = totalCommission.toFixed(2);
+        }
+
+        function renderBusinessSummary() {
+            const startDate = document.getElementById('summary-date-start').value;
+            const endDate = document.getElementById('summary-date-end').value;
+            const allEntries = [...blindShopData.currentDayEntries, ...blindShopData.archives.flatMap(a => a.entries)];
+
+            const filteredEntries = allEntries.filter(entry => {
+                const entryDate = new Date(entry.date);
+                const start = startDate ? new Date(startDate) : null;
+                const end = endDate ? new Date(endDate) : null;
+                return (!start || entryDate >= start) && (!end || entryDate <= end);
+            });
+
+            const totalNew = filteredEntries.filter(e => e.customerType === 'New').length;
+            const totalRegular = filteredEntries.filter(e => e.customerType === 'Regular').length;
+            const totalMale = filteredEntries.filter(e => e.gender === 'Male').length;
+            const totalFemale = filteredEntries.filter(e => e.gender === 'Female').length;
+            const totalBookings = filteredEntries.filter(e => e.booking).length;
+
+            const packageCounts = filteredEntries.reduce((acc, entry) => {
+                acc[entry.package] = (acc[entry.package] || 0) + 1;
+                return acc;
+            }, {});
+            const highestPackage = Object.keys(packageCounts).length > 0 ? Object.keys(packageCounts).reduce((a, b) => packageCounts[a] > packageCounts[b] ? a : b) : 'N/A';
+
+            const staffCommission = filteredEntries.reduce((acc, entry) => {
+                acc[entry.staff] = (acc[entry.staff] || 0) + entry.commission;
+                return acc;
+            }, {});
+            const highestStaff = Object.keys(staffCommission).length > 0 ? Object.keys(staffCommission).reduce((a, b) => staffCommission[a] > staffCommission[b] ? a : b) : 'N/A';
+
+            document.getElementById('summary-total-new').value = totalNew;
+            document.getElementById('summary-total-regular').value = totalRegular;
+            document.getElementById('summary-total-male').value = totalMale;
+            document.getElementById('summary-total-female').value = totalFemale;
+            document.getElementById('summary-total-bookings').value = totalBookings;
+            document.getElementById('summary-highest-package').value = highestPackage;
+            document.getElementById('summary-highest-staff').value = highestStaff;
+
+            renderSalesChart(filteredEntries);
+        }
+
+        let salesChart;
+        function renderSalesChart(entries) {
+            if (salesChart) {
+                salesChart.destroy();
+            }
+
+            const dailySales = entries.reduce((acc, entry) => {
+                const date = entry.date;
+                const revenue = parseFloat(entry.sales);
+                acc[date] = (acc[date] || 0) + revenue;
+                return acc;
+            }, {});
+
+            const sortedDates = Object.keys(dailySales).sort();
+            const data = {
+                labels: sortedDates,
+                datasets: [{
+                    label: 'Daily Sales (RM)',
+                    data: sortedDates.map(date => dailySales[date]),
+                    borderColor: '#047857',
+                    tension: 0.1,
+                    fill: false
+                }]
+            };
+
+            const config = {
+                type: 'line',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            };
+
+            const ctx = document.getElementById('salesChart').getContext('2d');
+            salesChart = new Chart(ctx, config);
+        }
+
+        function renderMonthlyProfit() {
+            const selectedMonth = document.getElementById('profit-month').value;
+            if (!selectedMonth) {
+                document.getElementById('profit-total-revenue').value = '';
+                document.getElementById('profit-total-expenses').value = '';
+                document.getElementById('profit-net-balance').value = '';
+                return;
+            }
+
+            const [year, month] = selectedMonth.split('-');
+            const allEntries = [...blindShopData.currentDayEntries, ...blindShopData.archives.flatMap(a => a.entries)];
+            const allTransactions = [...blindShopData.manualTransactions];
+            const allAdvances = [...blindShopData.advances];
+
+            const monthlySalesRevenue = allEntries.filter(entry => {
+                const entryDate = new Date(entry.date);
+                return entryDate.getFullYear() == year && (entryDate.getMonth() + 1).toString().padStart(2, '0') == month;
+            }).reduce((sum, entry) => sum + entry.sales, 0);
+
+            const manualCredits = allTransactions.filter(t => {
+                const tDate = new Date(t.date);
+                return t.type === 'credit' && tDate.getFullYear() == year && (tDate.getMonth() + 1).toString().padStart(2, '0') == month;
+            }).reduce((sum, t) => sum + t.amount, 0);
+            
+            const totalRevenue = monthlySalesRevenue + manualCredits;
+
+            const totalCommission = allEntries.filter(entry => {
+                const entryDate = new Date(entry.date);
+                return entryDate.getFullYear() == year && (entryDate.getMonth() + 1).toString().padStart(2, '0') == month;
+            }).reduce((sum, entry) => sum + entry.commission, 0);
+
+            const totalAdvances = allAdvances.filter(advance => {
+                const advanceDate = new Date(advance.date);
+                return advanceDate.getFullYear() == year && (advanceDate.getMonth() + 1).toString().padStart(2, '0') == month;
+            }).reduce((sum, advance) => sum + advance.deducted, 0);
+            
+            const manualDebits = allTransactions.filter(t => {
+                const tDate = new Date(t.date);
+                return t.type === 'debit' && tDate.getFullYear() == year && (tDate.getMonth() + 1).toString().padStart(2, '0') == month;
+            }).reduce((sum, t) => sum + t.amount, 0);
+
+            const totalExpenses = totalCommission + totalAdvances + manualDebits;
+            
+            const netBalance = totalRevenue - totalExpenses;
+
+            document.getElementById('profit-total-revenue').value = totalRevenue.toFixed(2);
+            document.getElementById('profit-total-expenses').value = totalExpenses.toFixed(2);
+            document.getElementById('profit-net-balance').value = netBalance.toFixed(2);
+        }
+
+        function addStaffAdvance() {
+            const date = document.getElementById('advance-date').value;
+            const staffName = document.getElementById('advance-staff').value;
+            const amount = parseFloat(document.getElementById('advance-amount').value);
+
+            if (!date || !staffName || isNaN(amount) || amount <= 0) {
+                showMessageBox('<p>Please fill in all advance fields correctly.</p>');
+                return;
+            }
+
+            const newAdvance = {
+                id: Date.now(),
+                date: date,
+                staff: staffName,
+                amount: amount,
+                deducted: 0,
+                balance: amount,
+                status: 'Pending'
+            };
+
+            blindShopData.advances.push(newAdvance);
+            saveBlindShopData();
+            renderStaffAdvances();
+            document.getElementById('advance-amount').value = '';
+            document.getElementById('advance-date').value = '';
+            document.getElementById('advance-staff').value = '';
+            showMessageBox('<p>Staff advance added successfully!</p>');
+        }
+
+        function renderStaffAdvances() {
+            const tableBody = document.getElementById('staff-advances-table-body');
+            tableBody.innerHTML = '';
+            blindShopData.advances.forEach(advance => {
+                const row = tableBody.insertRow();
+                row.innerHTML = `
+                    <td>${advance.date}</td>
+                    <td>${advance.staff}</td>
+                    <td>${advance.amount.toFixed(2)}</td>
+                    <td>${advance.deducted.toFixed(2)}</td>
+                    <td>${advance.balance.toFixed(2)}</td>
+                    <td>${advance.status}</td>
+                    <td class="no-print admin-only">
+                        <div class="flex flex-col space-y-2">
+                            <input type="number" id="deduct-${advance.id}" placeholder="Deduct" class="border p-1 rounded-lg w-full" />
+                            <button onclick="deductAdvance(${advance.id})" class="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded-lg text-xs w-full">Deduct</button>
+                            <button onclick="deleteAdvance(${advance.id})" class="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded-lg text-xs w-full">Delete</button>
+                        </div>
+                    </td>
+                `;
+            });
+            applyRolePermissions();
+        }
+
+        function deductAdvance(id) {
+            const advance = blindShopData.advances.find(a => a.id === id);
+            const deductionAmount = parseFloat(document.getElementById(`deduct-${id}`).value);
+            
+            if (advance && !isNaN(deductionAmount) && deductionAmount > 0) {
+                if (deductionAmount <= advance.balance) {
+                    advance.deducted += deductionAmount;
+                    advance.balance -= deductionAmount;
+                    if (advance.balance === 0) {
+                        advance.status = 'Paid';
+                    }
+                    saveBlindShopData();
+                    renderStaffAdvances();
+                    showMessageBox('<p>Advance successfully deducted.</p>');
+                } else {
+                    showMessageBox('<p>Deduction amount exceeds remaining balance.</p>');
+                }
+            } else {
+                showMessageBox('<p>Please enter a valid amount to deduct.</p>');
+            }
+        }
+
+        function deleteAdvance(id) {
+            blindShopData.advances = blindShopData.advances.filter(a => a.id !== id);
+            saveBlindShopData();
+            renderStaffAdvances();
+            showMessageBox('<p>Advance deleted.</p>');
+        }
+
+        function addManualTransaction(type) {
+            const amountInput = type === 'debit' ? document.getElementById('debit-amount') : document.getElementById('credit-amount');
+            const descInput = type === 'debit' ? document.getElementById('debit-desc') : document.getElementById('credit-desc');
+            const amount = parseFloat(amountInput.value);
+            const description = descInput.value.trim();
+
+            if (isNaN(amount) || amount <= 0 || !description) {
+                showMessageBox(`<p>Please enter a valid amount and description for the ${type}.</p>`);
+                return;
+            }
+
+            const newTransaction = {
+                id: Date.now(),
+                type,
+                amount,
+                description,
+                date: new Date().toISOString().split('T')[0]
+            };
+
+            blindShopData.manualTransactions.push(newTransaction);
+            saveBlindShopData();
+            renderManualTransactions();
+            amountInput.value = '';
+            descInput.value = '';
+            renderMonthlyProfit();
+            showMessageBox(`<p>Manual ${type} added successfully.</p>`);
+        }
+
+        function renderManualTransactions() {
+            const debitList = document.getElementById('debit-list');
+            const creditList = document.getElementById('credit-list');
+            debitList.innerHTML = '';
+            creditList.innerHTML = '';
+
+            const debits = blindShopData.manualTransactions.filter(t => t.type === 'debit').slice(-3);
+            const credits = blindShopData.manualTransactions.filter(t => t.type === 'credit').slice(-3);
+
+            debits.forEach(t => {
+                const li = document.createElement('li');
+                li.innerHTML = `(${t.date}) - RM${t.amount.toFixed(2)}: ${t.description}`;
+                debitList.appendChild(li);
+            });
+
+            credits.forEach(t => {
+                const li = document.createElement('li');
+                li.innerHTML = `(${t.date}) - RM${t.amount.toFixed(2)}: ${t.description}`;
+                creditList.appendChild(li);
+            });
+        }
+
+        function closeDay() {
+            if (blindShopData.currentDayEntries.length === 0) {
+                showMessageBox('<p>There are no entries to close for the day.</p>');
+                return;
+            }
+
+            const today = new Date().toISOString().split('T')[0];
+            const newArchive = {
+                date: today,
+                entries: blindShopData.currentDayEntries
+            };
+
+            blindShopData.archives.push(newArchive);
+            blindShopData.currentDayEntries = [];
+            blindShopData.currentDayWorkingStaff = [];
+            saveBlindShopData();
+            updateUI();
+            downloadJSON();
+            showMessageBox('<p>Day closed successfully! A backup has been downloaded.</p>');
+        }
+
+        function downloadJSON() {
+            const dataStr = JSON.stringify(blindShopData, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `blindshop_data_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function uploadJSON(input) {
+            const file = input.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        if(data.staffList && data.currentDayEntries !== undefined) {
+                            localStorage.setItem("blindShopData", e.target.result);
+                            initApp();
+                            showMessageBox("<p>Data uploaded successfully!</p>");
+                        } else {
+                            showMessageBox("<p>Invalid data file format.</p>");
+                        }
+                    } catch (error) {
+                        showMessageBox("<p>Error parsing data file.</p>");
+                    }
+                };
+                reader.readAsText(file);
+            }
+            input.value = '';
+        }
+
+        function confirmResetAllData() {
+            showMessageBox(`
+                <p>Are you sure you want to delete ALL data? This cannot be undone.</p>
+                <div class="mt-4 flex justify-around">
+                    <button onclick="resetAllData()" class="bg-red-800 hover:bg-red-900 text-white px-4 py-2 rounded-lg">Yes, Delete All</button>
+                    <button onclick="hideMessageBox()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg">Cancel</button>
+                </div>
+            `);
+        }
+
+        function resetAllData() {
+            localStorage.removeItem("blindShopData");
+            initApp();
+            hideMessageBox();
+            showMessageBox('<p>All data has been reset.</p>');
+        }
+
+        function generatePdfForSection(sectionId, filename) {
+            const orientation = sectionId === 'daily-log-and-summary-section' ? 'landscape' : 'portrait';
+            const element = document.getElementById(sectionId);
+            const opt = { margin: 10, filename: filename, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: orientation } };
+
+            const allSections = document.querySelectorAll('.tab-content > div');
+            allSections.forEach(sec => { if (sec.id !== sectionId) sec.style.display = 'none'; });
+            document.getElementById(`${sectionId}`).style.display = 'block';
+
+            html2pdf().set(opt).from(element).save().finally(() => {
+                allSections.forEach(sec => sec.style.display = '');
+                applyRolePermissions();
+            });
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            initApp();
+        });
+    <script src="app.js"></script>
+</body>
+</html>
+  
